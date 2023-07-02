@@ -1,0 +1,44 @@
+name: Build armv6 toolchain
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: Ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        path: armv6l_config
+    - uses: actions/checkout@v3
+      with:
+        repository: crosstool-ng/crosstool-ng
+        path: ctng-src
+        ref: crosstool-ng-1.25.0
+    - name: Prepare filesystem
+      run: |
+        mkdir crosstool-ng
+        mkdir build
+        mkdir build/dist
+        mkdir build/archives
+        mkdir build/.build
+    - name: Build crosstool-ng
+      run: |
+        sudo apt-get install -y gperf help2man libtool-bin meson ninja-build
+        cd ctng-src
+        ./bootstrap
+        ./configure --prefix=$GITHUB_WORKSPACE/crosstool-ng
+        make
+        make install
+    - name: Build Toolchain
+      run: |
+        export PATH="$PATH:$GITHUB_WORKSPACE/crosstool-ng/bin"
+        cd $GITHUB_WORKSPACE/armv6l_config
+        ct-ng build -j $(($(nproc) - 1))
+        cd $GIHUB_WORKSPACE/build/dist/
+        tar -czf arm-unknown-linux-gnueabihf-x86_64-ubuntu.tar.gz arm-unknown-linux-gnueabihf
+        sha256sum arm-unknown-linux-gnueabihf-x86_64-ubuntu.tar.gz | tee arm-unknown-linux-gnueabihf-x86_64-ubuntu.tar.gz.sha256
+    - name: Upload Toolchain
+      uses: actions/upload-artifact@v3
+      with:
+        name: armv6l-tools
+        path: ${{ github.workspace }}/build/dist/arm-unknown-linux-gnueabihf-x86_64-ubuntu.tar.gz
+        if-no-files-found: error
